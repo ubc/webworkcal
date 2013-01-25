@@ -1,0 +1,17 @@
+key_file='YOUR_PRIVATE_KEY-privatekey.p12'
+calendar='YOUR_CALENDAR_ID@group.calendar.google.com'
+service_account='YOUR_SERVICE_ACCOUNT@developer.gserviceaccount.com'
+
+// mysql setup
+host = "localhost"
+port = 3306
+user = "webwork"
+password = "YOUR_PASSWORD"
+dbname = "webwork"
+
+// OAuth2 Settings, you can get these keys at https://code.google.com/apis/console
+oauth2_client_id = 'YOUR_CLIENT_ID.apps.googleusercontent.com'
+oauth2_client_secret = 'YOUR_SECRET'
+
+// The developer key, you get this at https://code.google.com/apis/console
+developer_key = 'DEVELOPER_API_KEY'
