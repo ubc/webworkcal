@@ -28,6 +28,7 @@ Installation
     * Click "Add Person"
 1. Make a copy of config.ini.sample to config.ini
 1. Change the values inside config.ini
+1. Update your php.ini to add timezone so that it matches your timezone settings on the database server
 1. Load the MySQL Prodcedure
 
         mysql -u USERNAME -p DATABASE_NAME < assignmentDueProcedure.sql
