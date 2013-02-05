@@ -37,6 +37,10 @@ $client->setUseObjects(true);
 /* Load the key in PKCS 12 format - remember: this is the file you had to
  * download when you created the Service account on the API console.
  */
+if (dirname($config['key_file'] == '.') {
+    // expend to full path
+    $config['key_file'] = dirname(__FILE__).'/'.$config['key_file'];
+}
 $key = file_get_contents($config['key_file']);
 $client->setAssertionCredentials(new Google_AssertionCredentials(
     $config['service_account'],
