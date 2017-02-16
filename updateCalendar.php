@@ -1,12 +1,17 @@
 <?php
-require_once "google-api/Google_Client.php";
-require_once "google-api/contrib/Google_CalendarService.php";
+require_once __DIR__ . '/google-api/Google_Client.php';
+require_once __DIR__ . '/google-api/contrib/Google_CalendarService.php';
 
-$query = "call assignment_due()";
+$query = 'call assignment_due()';
 $eventArray = array();
 
-if (!$config = parse_ini_file('config.ini', true)) {
-    throw new Exception('Unable to open config.ini!');
+function splitCourseId($courseIdWithStudentCount) {
+    $splitted = explode('-', $courseIdWithStudentCount, 2);
+    return ctype_digit($splitted[0]) ? $splitted[1] : $courseIdWithStudentCount;
+}
+
+if (!$config = parse_ini_file(__DIR__ . '/config.ini', true)) {
+    throw new RuntimeException('Unable to open config.ini!');
 }
 
 $con = new mysqli($config['host'], $config['user'], $config['password'], $config['dbname'], $config['port'])
@@ -16,7 +21,7 @@ if ($stmt = $con->prepare($query)) {
     $stmt->execute();
     $stmt->bind_result($field1, $field2, $date, $studentCount);
     while ($stmt->fetch()) {
-        $eventArray[$studentCount.'-'.$field1.'-'.$field2] = $date;
+        $eventArray[$field1.'-'.$field2] = array('date' => $date, 'students' => $studentCount);
     }
     $stmt->close();
 }
@@ -37,9 +42,9 @@ $client->setUseObjects(true);
 /* Load the key in PKCS 12 format - remember: this is the file you had to
  * download when you created the Service account on the API console.
  */
-if (dirname($config['key_file']) == '.') {
+if (dirname($config['key_file']) === '.') {
     // expend to full path
-    $config['key_file'] = dirname(__FILE__).'/'.$config['key_file'];
+    $config['key_file'] = __DIR__ .'/'.$config['key_file'];
 }
 $key = file_get_contents($config['key_file']);
 $client->setAssertionCredentials(new Google_AssertionCredentials(
@@ -53,13 +58,27 @@ $client->setAssertionCredentials(new Google_AssertionCredentials(
 $cal = new Google_CalendarService($client);
 
 // get the list of events since now, don't care about old events
-$events = $cal->events->listEvents($config['calendar'], array('maxResults' => 999, 'timeMin' => date(DateTime::ATOM)));
+$eventsObj = $cal->events->listEvents($config['calendar'], array('maxResults' => 999, 'timeMin' => date(DateTime::ATOM), 'singleEvents' => true));
+$events = $eventsObj->getItems();
+
+//foreach ($events as $event) {
+//    $cal->events->delete($config['calendar'], $event->getId());
+//}
+
+while ($eventsObj->getNextPageToken()) {
+    $eventsObj = $cal->events->listEvents($config['calendar'], array(
+        'pageToken' => $eventsObj->getNextPageToken(),
+        'maxResults' => 999, 'timeMin' => date(DateTime::ATOM), 'singleEvents' => true)
+    );
+    $events[] = $eventsObj->getItems();
+}
 
 // update events
-foreach ($events->getItems() as $event) {
-    if (array_key_exists($event->getSummary(), $eventArray)) {
+foreach ($events as $event) {
+    $courseId = splitCourseId($event->getSummary());
+    if (array_key_exists($courseId, $eventArray)) {
         // if the time is different, change it
-        $startTime = date(DateTime::ATOM, strtotime($eventArray[$event->getSummary()]));
+        $startTime = date(DateTime::ATOM, strtotime($eventArray[$courseId]['date']));
         if ($event->getStart()->getDateTime() != $startTime) {
             $start = new Google_EventDateTime();
             $start->setDateTime($startTime);
@@ -69,7 +88,7 @@ foreach ($events->getItems() as $event) {
             echo "Event ".$event->getSummary()." has been updated!\n";
         }
         // now two events are the same, we can remove it from array, so that it not get inserted again.
-        unset($eventArray[$event->getSummary()]);
+        unset($eventArray[$courseId]);
     } else {
         // delete the events
         $cal->events->delete($config['calendar'], $event->getId());
@@ -78,14 +97,14 @@ foreach ($events->getItems() as $event) {
 }
 
 // the rest are the new events, we will insert them
-foreach ($eventArray as $key => $date) {
+foreach ($eventArray as $key => $courseData) {
     $event = new Google_Event();
-    $event->setSummary($key); /* what to do, summary of the appointment */
-    //$event->setLocation('Slochteren');            /* yes, it exists */
+    $event->setSummary($courseData['students'] . '-' . $key); /* what to do, summary of the appointment */
+    $event->setLocation('UBC WeBWorK');
 
     /* Now, set the start date/time
      */
-    $startTimestamp = strtotime($date);
+    $startTimestamp = strtotime($courseData['date']);
     $start = new Google_EventDateTime();
     $start->setDateTime(date(DateTime::ATOM, $startTimestamp));
     $event->setStart($start);
