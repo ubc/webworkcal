@@ -1,4 +1,4 @@
-FROM php:8.0-cli-alpine
+FROM php:8.0-cli-alpine3.13
 
 ENV GOOGLE_APPLICATION_CREDENTIALS=/app/service-account.json
 
