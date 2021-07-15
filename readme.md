@@ -2,7 +2,7 @@ WeBWorKCal
 ==================
 
 A simple script to grab the future assignments and due dates to put them on to Google calendar for [WeBWorK](http://webwork.maa.org/).
-Sometime the administrator would like to know when the assignments will due and how many students in the class. So that the administrator can prepare the server for the high load.
+Sometimes the administrator would like to know when the assignments will due and how many students in the class. So that the administrator can prepare the server for the high load.
 There might be some other use cases. Please let me know if you find it useful.
 
 This script will create an event on the Google calendar and using student count, course name, assignment name as event summary and due date as the event start/end date. The summary looks like:
@@ -18,7 +18,7 @@ Requirements
 
 Installation
 -------------
-1. Follow the instruction on Google API site to create a service account and download the private key
+1. Follow the instruction on Google API site to create a service account and download the json key file. Place the file in the same directory as `updateCalendar.php`.
 1. Create a new calendar or use existing one
 1. Grant your service account read/write access to your Google calendar
     * Go to Google calendar and select the calendar you want to share with service account
@@ -29,14 +29,19 @@ Installation
 1. Make a copy of config.ini.sample to config.ini
 1. Change the values inside config.ini
 1. Update your php.ini to add timezone so that it matches your timezone settings on the database server
-1. Load the MySQL Prodcedure
+1. Load the MySQL Procedure
 
         mysql -u USERNAME -p DATABASE_NAME < assignmentDueProcedure.sql
-1. Run 
+1. Run
 
         php updateCalendar.php
 1. Optionally, create a cron job for automatic update.
 
+Docker
+---------------
+```
+docker run --rm -v service-account.json:/app/service-account.json -e CALENDAR=xxx -e DB_HOST=xxx -e DB_PORT=3306 -e DB_USER=webwork -e DB_PASSWORD=xxx -e DB_NAME=webwork webworkcal
+```
 
 Developer Notes
 --------------------

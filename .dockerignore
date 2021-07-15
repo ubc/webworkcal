@@ -1,5 +1,6 @@
-config.ini
-*.p12
-.idea
-service-account.json
 vendor
+config.ini
+service-account.json
+.git
+.gitignore
+.idea

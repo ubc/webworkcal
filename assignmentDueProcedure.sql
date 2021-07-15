@@ -22,7 +22,7 @@ BEGIN
   );
   OPEN cur;
   FETCH cur INTO tname;
-  
+
 
   table_loop:LOOP
     FETCH cur INTO tname;
@@ -32,7 +32,7 @@ BEGIN
     PREPARE stmt1 FROM @query_str;
     EXECUTE stmt1;
     DEALLOCATE PREPARE stmt1;
-    
+
     SET @query_str = concat('INSERT INTO tmp_assignments SELECT "', course_name, '", CONVERT(`set_id` USING utf8), `open_date`, `due_date`, `answer_date`, ? FROM `', tname, '`');
     PREPARE stmt2 FROM @query_str;
     EXECUTE stmt2 USING @studentCount;
@@ -42,8 +42,8 @@ BEGIN
       LEAVE table_loop;
     END IF;
   END LOOP;
-  
+
   CLOSE cur;
 
-  SELECT `course`, `set_id`, FROM_UNIXTIME(`due_date`), `student_count` from `tmp_assignments` WHERE `due_date` > UNIX_TIMESTAMP() ORDER BY `due_date` DESC;
+  SELECT `course`, `set_id`, FROM_UNIXTIME(`open_date`) as `open_date`, FROM_UNIXTIME(`due_date`) as `due_date`, `student_count` from `tmp_assignments` WHERE `due_date` > UNIX_TIMESTAMP() ORDER BY `due_date` DESC;
 END $$
