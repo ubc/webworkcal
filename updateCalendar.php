@@ -80,7 +80,7 @@ while ($eventsObj->getNextPageToken()) {
         'pageToken' => $eventsObj->getNextPageToken(),
         'maxResults' => 999, 'timeMin' => date(DateTime::ATOM), 'singleEvents' => true)
     );
-    $events[] = $eventsObj->getItems();
+    $events = array_merge($events, $eventsObj->getItems());
 }
 
 // Uncomment this when to remove all events from the calendar
