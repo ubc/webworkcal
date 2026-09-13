@@ -1,18 +1,17 @@
-FROM php:8.0-cli-alpine3.13
+# composer.lock requires PHP >= 8.1 (monolog 3); keep this in step with
+# config.platform.php in composer.json.
+FROM php:8.3-cli-alpine
 
 ENV GOOGLE_APPLICATION_CREDENTIALS=/app/service-account.json
 
-RUN docker-php-ext-install mysqli \
-     && mkdir /app \
-     && cd /app \
-     && curl -o composer-setup.php https://getcomposer.org/installer \
-     && php composer-setup.php \
-     && rm composer-setup.php
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+RUN docker-php-ext-install mysqli && mkdir /app
 
 WORKDIR /app
 
 ADD . /app
 
-RUN php composer.phar install
+RUN composer install --no-dev --no-interaction --no-progress
 
 CMD ["php", "updateCalendar.php"]

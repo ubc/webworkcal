@@ -4,3 +4,5 @@ service-account.json
 .git
 .gitignore
 .idea
+tests
+phpunit.xml

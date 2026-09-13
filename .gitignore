@@ -3,3 +3,4 @@ config.ini
 .idea
 service-account.json
 vendor
+.phpunit.result.cache
