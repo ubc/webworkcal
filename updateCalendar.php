@@ -1,5 +1,6 @@
 <?php
 require __DIR__ . '/vendor/autoload.php';
+require __DIR__ . '/src/functions.php';
 
 if (PHP_SAPI !== 'cli') {
 	throw new Exception('This application must be run on the command line.');
@@ -7,11 +8,7 @@ if (PHP_SAPI !== 'cli') {
 
 $query = 'call assignment_due()';
 $eventArray = array();
-
-function splitCourseId($courseIdWithStudentCount) {
-    $splitted = explode('-', $courseIdWithStudentCount, 2);
-    return ctype_digit($splitted[0]) ? $splitted[1] : $courseIdWithStudentCount;
-}
+$failedWrites = 0;
 
 if (file_exists(__DIR__ . '/config.ini')) {
 	if (!$config = parse_ini_file(__DIR__ . '/config.ini', true)) {
@@ -61,7 +58,11 @@ if ($stmt = $con->prepare($query)) {
 
 $con->close();
 
-$client = new Google\Client();
+// Retry with exponential backoff instead of dying on the first transient error.
+// The client's default retry map already covers 403 rateLimitExceeded /
+// userRateLimitExceeded, 500, 503 and connection failures; it only kicks in
+// once `retries` is set. 5 retries starting at 1s gives ~1+2+4+8+16 = 31s.
+$client = new Google\Client(array('retry' => array('retries' => 5, 'initial_delay' => 1)));
 $client->setApplicationName('WeBWorK_Calendar');
 $client->useApplicationDefaultCredentials();
 $client->addScope(Google\Service\Calendar::CALENDAR);
@@ -92,32 +93,43 @@ date_default_timezone_set('America/Vancouver');
 foreach ($events as $event) {
     $courseId = splitCourseId($event->getSummary());
     if (array_key_exists($courseId, $eventArray)) {
-        // if the time is different, change it
+        // if the time is different, change it (compare instants: Google returns
+        // the time in the calendar's time zone, so the strings never match)
         $startTime = date(DateTime::ATOM, strtotime($eventArray[$courseId]['open_date']));
         $endTime = date(DateTime::ATOM, strtotime($eventArray[$courseId]['due_date']));
         $updated = false;
-        if ($event->getStart()->getDateTime() !== $startTime) {
+        if (!isSameInstant($event->getStart()->getDateTime(), $startTime)) {
             $start = new Google\Service\Calendar\EventDateTime();
             $start->setDateTime($startTime);
             $event->setStart($start);
             $updated = true;
         }
-		if ($event->getEnd()->getDateTime() !== $endTime) {
+		if (!isSameInstant($event->getEnd()->getDateTime(), $endTime)) {
 			$end = new Google\Service\Calendar\EventDateTime();
 			$end->setDateTime($endTime);
 			$event->setEnd($end);
 			$updated = true;
 		}
         if ($updated) {
-			$cal->events->update($config['calendar'], $event->getId(), $event);
-			echo "Event ".$event->getSummary()." has been updated!\n";
+            try {
+                $cal->events->update($config['calendar'], $event->getId(), $event);
+                echo "Event ".$event->getSummary()." has been updated!\n";
+            } catch (Exception $e) {
+                $failedWrites++;
+                file_put_contents('php://stderr', 'Updating event '.$event->getSummary().' failed! '.$e."\n");
+            }
 		}
         // now two events are the same, we can remove it from array, so that it not get inserted again.
         unset($eventArray[$courseId]);
     } else {
         // delete the events
-        $cal->events->delete($config['calendar'], $event->getId());
-        echo "Event ".$event->getSummary()." has been deleted!\n";
+        try {
+            $cal->events->delete($config['calendar'], $event->getId());
+            echo "Event ".$event->getSummary()." has been deleted!\n";
+        } catch (Exception $e) {
+            $failedWrites++;
+            file_put_contents('php://stderr', 'Deleting event '.$event->getSummary().' failed! '.$e."\n");
+        }
     }
 }
 
@@ -145,10 +157,15 @@ foreach ($eventArray as $key => $courseData) {
     try {
         $createdEvent = $cal->events->insert($config['calendar'], $event);
     } catch (Exception $e) {
-        file_put_contents('php://stderr', 'Adding event failed! '.$e);
+        $failedWrites++;
+        file_put_contents('php://stderr', 'Adding event '.$key.' failed! '.$e."\n");
         continue;
     }
     echo 'Event '.$key." has been added!\n";
 }
 
+if ($failedWrites > 0) {
+    echo "Done with $failedWrites failed calendar write(s).\n";
+    exit(1);
+}
 echo "Done.\n";
