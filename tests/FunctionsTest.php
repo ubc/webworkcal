@@ -31,6 +31,26 @@ final class FunctionsTest extends TestCase
         $this->assertFalse(isSameInstant('2026-09-20T23:59:00-07:00', '2026-09-20T23:59:00Z'));
     }
 
+    public function testDbDateIsReadAsUtcWhateverTheDefaultZone(): void
+    {
+        $previous = date_default_timezone_get();
+        date_default_timezone_set('America/Vancouver');
+        try {
+            // 23:59 in BC on 2026-12-01 (permanent UTC-7) is 06:59Z the next day. With PHP 8.3's
+            // bundled tz data, parsing BC wall time would give 07:59Z instead.
+            $this->assertSame('2026-12-02T06:59:00+00:00', utcDbDateToAtom('2026-12-02 06:59:00'));
+            $this->assertTrue(isSameInstant(utcDbDateToAtom('2026-12-02 06:59:00'), '2026-12-01T23:59:00-07:00'));
+        } finally {
+            date_default_timezone_set($previous);
+        }
+    }
+
+    public function testUnparseableDbDateThrows(): void
+    {
+        $this->expectException(Exception::class);
+        utcDbDateToAtom('not a date');
+    }
+
     public function testMissingOrUnparseableValuesAreNeverEqual(): void
     {
         $this->assertFalse(isSameInstant(null, '2026-09-21T06:59:00Z'));

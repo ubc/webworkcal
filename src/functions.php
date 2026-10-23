@@ -31,3 +31,17 @@ function isSameInstant(?string $a, ?string $b): bool
 
     return $ta !== false && $tb !== false && $ta === $tb;
 }
+
+/**
+ * Convert a DATETIME from the assignment_due() query to an ATOM string.
+ *
+ * updateCalendar.php sets the session time_zone to '+00:00', so FROM_UNIXTIME
+ * returns UTC wall time, and reading it as UTC gives the exact instant. This
+ * keeps the result independent of the database's time_zone and of PHP's
+ * bundled tz data. PHP 8.3's copy predates BC's move to permanent UTC-7 and
+ * would put Nov-Mar dates an hour off. Throws on an unparseable value.
+ */
+function utcDbDateToAtom(string $dbDate): string
+{
+    return (new DateTimeImmutable($dbDate, new DateTimeZone('UTC')))->format(DateTimeInterface::ATOM);
+}
