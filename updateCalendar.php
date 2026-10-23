@@ -33,6 +33,11 @@ if ($config['calendar'] === false) {
 $con = new mysqli($config['host'], $config['user'], $config['password'], $config['dbname'], $config['port'])
         or die ('Could not connect to the database server' . mysqli_connect_error());
 
+// Have FROM_UNIXTIME in assignment_due() return UTC, so the dates don't depend on
+// the database's time_zone or on PHP's bundled tz data (see utcDbDateToAtom()).
+$con->query("SET time_zone = '+00:00'")
+        or die ('Could not set the session time zone: ' . $con->error);
+
 $now = new DateTime();
 if ($stmt = $con->prepare($query)) {
     $stmt->execute();
@@ -44,10 +49,12 @@ if ($stmt = $con->prepare($query)) {
 		}
     	// ignore the assignments start early than 3 months or end late than 6 months from now
 		try {
-			if ($now->diff(new DateTime($open_date))->format("%a") < 90
-				&& $now->diff(new DateTime($due_date))->format("%a") < 180) {
+			$openAtom = utcDbDateToAtom($open_date);
+			$dueAtom = utcDbDateToAtom($due_date);
+			if ($now->diff(new DateTime($openAtom))->format("%a") < 90
+				&& $now->diff(new DateTime($dueAtom))->format("%a") < 180) {
 				$eventArray[$field1 . '-' . $field2] = array(
-					'open_date' => $open_date, 'due_date' => $due_date, 'students' => $studentCount);
+					'open_date' => $openAtom, 'due_date' => $dueAtom, 'students' => $studentCount);
 			}
 		} catch (Exception $e) {
 			echo "Warning: invalid open ($open_date) or due ($due_date) date. Skipped $field2 assignment.";
@@ -86,17 +93,14 @@ while ($eventsObj->getNextPageToken()) {
 // Uncomment this when to remove all events from the calendar
 //$eventArray = array();
 
-// set default timezone to Vancouver as the dates from db query don't include timezone info
-date_default_timezone_set('America/Vancouver');
-
 // update events
 foreach ($events as $event) {
     $courseId = splitCourseId($event->getSummary());
     if (array_key_exists($courseId, $eventArray)) {
         // if the time is different, change it (compare instants: Google returns
         // the time in the calendar's time zone, so the strings never match)
-        $startTime = date(DateTime::ATOM, strtotime($eventArray[$courseId]['open_date']));
-        $endTime = date(DateTime::ATOM, strtotime($eventArray[$courseId]['due_date']));
+        $startTime = $eventArray[$courseId]['open_date'];
+        $endTime = $eventArray[$courseId]['due_date'];
         $updated = false;
         if (!isSameInstant($event->getStart()->getDateTime(), $startTime)) {
             $start = new Google\Service\Calendar\EventDateTime();
@@ -141,16 +145,14 @@ foreach ($eventArray as $key => $courseData) {
 
     /* Now, set the start date/time
      */
-    $startTimestamp = strtotime($courseData['open_date']);
     $start = new Google\Service\Calendar\EventDateTime();
-    $start->setDateTime(date(DateTime::ATOM, $startTimestamp));
+    $start->setDateTime($courseData['open_date']);
     $event->setStart($start);
 
     /* Now, set the end date/time
      */
-	$endTimestamp = strtotime($courseData['due_date']);
 	$end = new Google\Service\Calendar\EventDateTime();
-    $end->setDateTime(date(DateTime::ATOM, $endTimestamp));
+    $end->setDateTime($courseData['due_date']);
     $event->setEnd($end);
 
     /* CREATE THE EVENT IN THE PROPER CALENDAR */
