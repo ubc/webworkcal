@@ -1,6 +1,6 @@
 # composer.lock requires PHP >= 8.1 (monolog 3); keep this in step with
 # config.platform.php in composer.json.
-FROM php:8.3-cli-alpine
+FROM php:8.3.37-cli-alpine
 
 ENV GOOGLE_APPLICATION_CREDENTIALS=/app/service-account.json
 
